@@ -23,18 +23,32 @@ if (isset($_GET["msg"])) {
 $fecha_limite = date("Y-m-d", strtotime("-5 days"));
 $conn->query("DELETE FROM actividades WHERE tiempo <= '$fecha_limite'");
 
-// Insertar nueva actividad
-if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST["agenda"])) {
-    $tiempo = $_POST["year"] . "-" . $_POST["mes"] . "-" . $_POST["dia"];
-    $hora = $_POST["horas"] . ":" . $_POST["minutos"] . ":00";
-    if ($_POST["24h"] == 12 && $_POST["horas"] != 12) {
-        $hora = ($_POST["horas"] + 12) . ":" . $_POST["minutos"] . ":00";
+// Insertar nueva actividad si se recibe un formulario válido
+if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["agenda"])) {
+    $dia = filter_input(INPUT_POST, "dia", FILTER_VALIDATE_INT);
+    $mes = filter_input(INPUT_POST, "mes", FILTER_VALIDATE_INT);
+    $year = filter_input(INPUT_POST, "year", FILTER_VALIDATE_INT);
+    $horas = filter_input(INPUT_POST, "horas", FILTER_VALIDATE_INT);
+    $minutos = filter_input(INPUT_POST, "minutos", FILTER_VALIDATE_INT);
+    $ampm = filter_input(INPUT_POST, "24h", FILTER_VALIDATE_INT);
+    $actividad = filter_input(INPUT_POST, "actividad", FILTER_SANITIZE_STRING);
+
+    if ($dia && $mes && $year && $horas !== false && $minutos !== false) {
+        $tiempo = sprintf("%04d-%02d-%02d", $year, $mes, $dia);
+
+        // Convertir a formato de 24 horas
+        if ($ampm == 12 && $horas != 12) {
+            $horas += 12;
+        } elseif ($ampm == 0 && $horas == 12) {
+            $horas = 0;
+        }
+        $hora = sprintf("%02d:%02d:00", $horas, $minutos);
+
+        $stmt = $conn->prepare("INSERT INTO actividades (idusuario, tiempo, hora, actividad) VALUES (?, ?, ?, ?)");
+        $stmt->bind_param("ssss", $_SESSION["user"], $tiempo, $hora, $actividad);
+        $stmt->execute();
+        $stmt->close();
     }
-    
-    $stmt = $conn->prepare("INSERT INTO actividades (idusuario, tiempo, hora, actividad) VALUES (?, ?, ?, ?)");
-    $stmt->bind_param("ssss", $_SESSION["user"], $tiempo, $hora, $_POST["actividad"]);
-    $stmt->execute();
-    $stmt->close();
 }
 
 // Obtener actividades del día
@@ -61,8 +75,13 @@ if ($row = $result->fetch_assoc()) {
 // Obtener lista de usuarios si el usuario tiene nivel 1
 $usuarios = [];
 if ($_SESSION["nivel"] == 1) {
-    $usuarios = $conn->query("SELECT idusuario, nombre FROM users")->fetch_all(MYSQLI_ASSOC);
+    $result = $conn->query("SELECT idusuario, nombre FROM users");
+    if ($result) {
+        $usuarios = $result->fetch_all(MYSQLI_ASSOC);
+    }
 }
+
+$conn->close();
 ?>
 
 <!DOCTYPE html>
