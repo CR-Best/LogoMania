@@ -1,0 +1,33 @@
+
+
+
+<table width="1%" border="0" cellspacing="0" cellpadding="0" align="center" >
+  <tr>
+    <td><table width="1%%" border="5" cellpadding="5" cellspacing="5" bordercolor="#164E7F">
+  <tr>
+    <td><img src="top.jpg" /></td>
+  </tr>
+  <tr>
+    <td align="right" bgcolor="#F27427"><script src="menu/xaramenu.js"></script><script menumaker src="menu/camden.js"></script></td>
+  </tr>
+  <tr>
+    <td align="left" bgcolor="#FFFFFF">
+
+<table width="100%" border="0" cellspacing="0" cellpadding="0">
+<tr>
+<td align=left>
+	<span class="fecha">
+	<script language="JavaScript" type="text/javascript">
+	MostrarFecha();
+	</script> </span><br>
+<object classid="clsid:D27CDB6E-AE6D-11cf-96B8-444553540000" codebase="http://download.macromedia.com/pub/shockwave/cabs/flash/swflash.cab#version=7,0,19,0" width="135" height="50">
+  <param name="movie" value="img/reloj.swf?id=<?php echo rand(1111,9999); ?>" />
+  <param name="quality" value="high" />
+  <embed src="img/reloj.swf?id=<?php echo rand(1111,9999); ?>" quality="high" pluginspage="http://www.macromedia.com/go/getflashplayer" type="application/x-shockwave-flash" width="135" height="50"></embed>
+</object></td>
+
+<td align=right valign=top><a href=sistema.php>Regresar a pagina principal</a> | <a href=logoff.php>Cerrar Sesi&oacute;n</a>
+</td></tr></table>
+
+<br />
+        <br />

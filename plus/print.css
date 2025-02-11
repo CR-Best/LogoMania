@@ -1,0 +1,12 @@
+/* CSS Document */
+
+body {
+margin:0 0 0 0; font-family:"Times New Roman", Times, serif; font-size:12px;
+}
+.Estilo2 {font-size: 11px}
+.Estilo3 {font-size: 12px; }
+.Estilo4 {font-size: 10px}
+
+#cabecera, #pie {
+    display:none;
+}

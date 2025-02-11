@@ -1,0 +1,9 @@
+<table width="100%" border="1" cellpadding="1" cellspacing="1" bordercolor="#164E7F">
+             <tr class=titulo>
+               <td width="1%">CANT.</td>
+               <td>Descripcion</td>
+               <td width="10%">Precio Un. </td>
+               <td width="10%">Ventas Gravadas </td>
+             </tr><tr><td>54</td><td> - Camiseta Bordada</td><td>8.85</td><td>477.88</td></tr><tr><td colspan=3 align=right><b>Subtotal</b></td><td align=right>$ 477.88</td></tr>
+<tr><td colspan=3 align=right><b>I.V.A.</b></td><td align=right>$ 62.12</td></tr>
+<tr><td colspan=3 align=right><b>Total</b></td><td align=right>$ 540.00</td></tr></table>

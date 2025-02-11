@@ -1,0 +1,5 @@
+		  <?php 
+		  $conectar=mysql_connect("localhost","root","")or die("Error en Coneccion");
+		  mysql_select_db("sistema",$conectar)or die("Error en Base de Datos");
+		  
+		  ?>	  

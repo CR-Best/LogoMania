@@ -1,0 +1,51 @@
+<?php
+session_start();
+
+if(!isset($_SESSION["user"]))
+	header("location:index.php");
+
+
+
+
+?>
+
+
+	  
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1" />
+<title>...::: LoGoMaNiA :::...</title>
+
+
+
+
+<script language="javascript" type="text/javascript">
+function MostrarFecha()
+   {
+	   var nombres_dias = new Array("Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado")
+	   var nombres_meses = new Array("Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre")
+	
+	   var fecha_actual = new Date()
+	
+	   dia_mes = fecha_actual.getDate()	
+	   dia_semana = fecha_actual.getDay()	
+	   mes = fecha_actual.getMonth() + 1
+	   anio = fecha_actual.getFullYear()
+	
+	   document.write(nombres_dias[dia_semana] + ", " + dia_mes + " de " + nombres_meses[mes - 1] + " de " + anio)
+   }
+
+</script>
+
+
+
+
+
+
+
+
+<link href="plus/estilo.css" rel="stylesheet" type="text/css" />
