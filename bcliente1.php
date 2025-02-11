@@ -1,117 +1,91 @@
-<?php 
-include("plus/conexion.lm");
-include("plus/header.lm");
+<?php
+session_start();
+require_once "db.php";
+include "plus/header.lm";
 ?>
 
-
-<script language="javascript">
-function elimi(vinculo, cliente)
-{
-	var preg="Ha escogido eliminar a " + cliente + ". Esta seguro que desea hacerlo?";
-	var answer = confirm(preg);
-	var conf=cliente+" sera eliminado";
-	if (answer){
-		alert(conf);
-		window.location = vinculo;
-	}
-	else{
-		alert("Accion cancelada!");
-	}
-
-
+<script>
+function confirmarEliminacion(url, cliente) {
+    if (confirm(`¿Está seguro de que desea eliminar a ${cliente}? Esta acción no se puede deshacer.`)) {
+        window.location.href = url;
+    }
 }
-
 </script>
 
-<?php
-include("plus/top.lm");
-?>
-          <table width="90%" border="3" align="center" cellpadding="4" cellspacing="4" bordercolor="#164E7F">
-              
-		<tr>
-          <td colspan="5" class="titulo"><img src="img/bcliente.jpg" width="300" height="75" /></td>
-          </tr>
-		   <?php
-		   	$criterio=$_POST["busqueda"];
-			$separar=explode(" ",$criterio);
-			
-			$ag="1";
-			$msg="";
-			for ($a=1; $a<=count($separar); $a++)
-			{
-					
-				$e=$a-1;
-				$msg.=" nombrecliente LIKE \"%$separar[$e]%\"";
-				
-				if (count($separar)>1 && $a!=count($separar))
-					$msg.=" AND ";
-				
-			}
-			
-	$sql = "SELECT * FROM clientes WHERE $msg"; 
-	$buscar=mysql_query($sql,$conectar);
-	$total=mysql_num_rows($buscar);
-	echo "<tr><td colspan=5 class=titulo>Registros encontrados: <b>$total</b></td></tr>";
-		   ?>
-          <tr>
-            <td class=titulo><b>Nombre del Cliente</b></td>
-            <td align="center" class=titulo>Modificar</td>
-            <td align="center" class=titulo>Historial</td>
-			<td align="center" class=titulo>Agregar Pedido</td>
-            <td align="center" class=titulo>Eliminar</td>
-          </tr>
-		  <?php
-		  
-		  
+<body>
+<?php include "plus/top.lm"; ?>
 
+<table width="90%" border="3" align="center" cellpadding="4" cellspacing="4" bordercolor="#164E7F">
+    <tr>
+        <td colspan="5" class="titulo">
+            <img src="img/bcliente.jpg" width="300" height="75" />
+        </td>
+    </tr>
+    <?php
+    $criterio = trim($_POST["busqueda"]);
+    $separar = explode(" ", $criterio);
+    $busqueda = "%" . implode("%", $separar) . "%";
 
-		  
-		  while($res=mysql_fetch_array($buscar))
-		  {
-		  echo "<tr>
-            <td>$res[1]</td>
-            <td align=center><a href=modificarcliente.php?id=$res[0]><img src=img/modificar.png border=0></a></td>
-            <td align=center><a href=historialcliente.php?id=$res[0]><img src=img/historial.png border=0></a></td>
-			<td align=center><a href=npedido.php?id=$res[0]><img src=img/historial.png border=0></a></td>
-			<td align=center>";
-			$fla=0;
-			$bus="SELECT * FROM pedidos WHERE idcliente=\"$res[0]\"";
-			$consulta=mysql_query($bus, $conectar) or die("Error");
-			if(mysql_num_rows($consulta)>=1)
-				$fla=1;
+    $stmt = $conn->prepare("SELECT * FROM clientes WHERE nombrecliente LIKE ?");
+    $stmt->bind_param("s", $busqueda);
+    $stmt->execute();
+    $buscar = $stmt->get_result();
+    $total = $buscar->num_rows;
+    
+    echo "<tr><td colspan=5 class=titulo>Registros encontrados: <b>$total</b></td></tr>";
+    ?>
+    <tr>
+        <td class="titulo"><b>Nombre del Cliente</b></td>
+        <td align="center" class="titulo">Modificar</td>
+        <td align="center" class="titulo">Historial</td>
+        <td align="center" class="titulo">Agregar Pedido</td>
+        <td align="center" class="titulo">Eliminar</td>
+    </tr>
+    <?php while ($res = $buscar->fetch_assoc()): ?>
+        <tr>
+            <td><?php echo htmlspecialchars($res["nombrecliente"]); ?></td>
+            <td align="center">
+                <a href="modificarcliente.php?id=<?php echo $res["idcliente"]; ?>">
+                    <img src="img/modificar.png" border="0" title="Modificar Cliente">
+                </a>
+            </td>
+            <td align="center">
+                <a href="historialcliente.php?id=<?php echo $res["idcliente"]; ?>">
+                    <img src="img/historial.png" border="0" title="Ver Historial">
+                </a>
+            </td>
+            <td align="center">
+                <a href="npedido.php?id=<?php echo $res["idcliente"]; ?>">
+                    <img src="img/historial.png" border="0" title="Agregar Pedido">
+                </a>
+            </td>
+            <td align="center">
+                <?php
+                $stmt_check = $conn->prepare("
+                    SELECT 'pedido' AS source FROM pedidos WHERE idcliente = ?
+                    UNION
+                    SELECT 'ccf' FROM ccf WHERE idcliente = ?
+                    UNION
+                    SELECT 'cf' FROM cf WHERE idcliente = ?
+                ");
+                $stmt_check->bind_param("iii", $res["idcliente"], $res["idcliente"], $res["idcliente"]);
+                $stmt_check->execute();
+                $has_dependencias = $stmt_check->get_result()->num_rows > 0;
+                $stmt_check->close();
 
-			$bus="SELECT * FROM ccf WHERE idcliente=\"$res[0]\"";
-			$consulta=mysql_query($bus, $conectar) or die("Error");
-			if(mysql_num_rows($consulta)>=1)
-				$fla=1;
+                if ($has_dependencias):
+                ?>
+                    <img src="img/eliminar.png" border="0" title="No se puede eliminar este cliente, ya que tiene pedidos o documentos asociados.">
+                <?php else: ?>
+                    <a href="#" onclick="confirmarEliminacion('eliminarcliente.php?id=<?php echo $res["idcliente"]; ?>', '<?php echo htmlspecialchars($res["nombrecliente"]); ?>')">
+                        <img src="img/eliminar.png" border="0" title="Eliminar Cliente">
+                    </a>
+                <?php endif; ?>
+            </td>
+        </tr>
+    <?php endwhile; ?>
+</table>
 
-			$bus="SELECT * FROM cf WHERE idcliente=\"$res[0]\"";
-			$consulta=mysql_query($bus, $conectar) or die("Error");
-			if(mysql_num_rows($consulta)>=1)
-				$fla=1;
-
-
-			if($fla==1)
-			{
-				echo "<img src=img/eliminar.png border=0 alt=\"No se puede eliminar este cliente, perderia informacion importante de contabilidad al hacerlo.\">";
-			}
-			else
-			{
-            echo "<a onclick=\"elimi('eliminarcliente.php?id=$res[0]', '$res[1]')\"><img src=img/eliminar.png border=0></a>";
-			}
-			
-			echo "</td>
-          </tr>";
-		  }
-		  ?>
-		  
-		  
-		 <tr>
-		   <td colspan="4" align="center">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</td>
-		   </tr>
-      </table>
-          
-<?php 
-	  include("plus/bottom.lm");
-	  ?>
-	
+<?php include "plus/bottom.lm"; ?>
+</body>
+</html>
