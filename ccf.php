@@ -8,16 +8,13 @@ include "plus/header.lm";
 if ($reg === 1) {
     $idclientes = intval($_POST["idclientes"]);
 
-    // Consultar pedidos del cliente seleccionado
-    $stmt = $conn->prepare("SELECT COUNT(*) as total FROM pedidos WHERE idcliente = ?");
-    $stmt->bind_param("i", $idclientes);
-    $stmt->execute();
-    $result = $stmt->get_result()->fetch_assoc();
-    $t2pedi2 = $result["total"];
-    $stmt->close();
-
-    // Consultar datos del cliente
-    $stmt = $conn->prepare("SELECT idcliente, nombrecliente FROM clientes WHERE idcliente = ?");
+    // Consultar datos del cliente y el número de pedidos en una sola consulta
+    $stmt = $conn->prepare("
+        SELECT c.idcliente, c.nombrecliente, COUNT(p.idpedido) AS total_pedidos 
+        FROM clientes c
+        LEFT JOIN pedidos p ON c.idcliente = p.idcliente
+        WHERE c.idcliente = ?
+    ");
     $stmt->bind_param("i", $idclientes);
     $stmt->execute();
     $cliente = $stmt->get_result()->fetch_assoc();
@@ -41,27 +38,28 @@ if ($reg === 1) {
                 <td width="76%">
                     <input name="ncliente" type="text" size="50" value="<?php echo htmlspecialchars($cliente['nombrecliente']); ?>" readonly>
                     <input name="idcliente" type="hidden" value="<?php echo htmlspecialchars($cliente['idcliente']); ?>">
-                    <input name="npedido" type="hidden" value="<?php echo $t2pedi2; ?>">
+                    <input name="npedido" type="hidden" value="<?php echo $cliente['total_pedidos']; ?>">
                 </td>
             </tr>
             <tr>
                 <td>Pedidos:</td>
                 <td>
                     <?php
-                    $stmt = $conn->prepare("SELECT idpedido, cantidadproducto, idproducto FROM pedidos WHERE idcliente = ?");
+                    $stmt = $conn->prepare("
+                        SELECT p.idpedido, p.cantidadproducto, pr.idproducto, pr.nombreproducto 
+                        FROM pedidos p
+                        JOIN productos pr ON p.idproducto = pr.idproducto
+                        WHERE p.idcliente = ?
+                    ");
                     $stmt->bind_param("i", $cliente["idcliente"]);
                     $stmt->execute();
                     $pedidos = $stmt->get_result();
 
                     while ($pedido = $pedidos->fetch_assoc()) {
-                        $stmt = $conn->prepare("SELECT nombreproducto FROM productos WHERE idproducto = ?");
-                        $stmt->bind_param("i", $pedido["idproducto"]);
-                        $stmt->execute();
-                        $producto = $stmt->get_result()->fetch_assoc()["nombreproducto"];
-
                         echo '<input type="checkbox" name="pedido' . $pedido["idpedido"] . '" value="' . $pedido["idpedido"] . '">
-                              ' . $pedido["cantidadproducto"] . ' - (' . $pedido["idproducto"] . ') ' . htmlspecialchars($producto) . '<br>';
+                              ' . htmlspecialchars($pedido["cantidadproducto"]) . ' - (' . htmlspecialchars($pedido["idproducto"]) . ') ' . htmlspecialchars($pedido["nombreproducto"]) . '<br>';
                     }
+                    $stmt->close();
                     ?>
                 </td>
             </tr>
@@ -84,20 +82,21 @@ if ($reg === 1) {
                 <td width="76%">
                     <select name="idclientes">
                         <?php
-                        $stmt = $conn->prepare("SELECT idcliente, nombrecliente FROM clientes WHERE tipodocumento = 1 ORDER BY nombrecliente ASC");
+                        // Obtener clientes con pedidos en una sola consulta
+                        $stmt = $conn->prepare("
+                            SELECT c.idcliente, c.nombrecliente 
+                            FROM clientes c
+                            WHERE c.tipodocumento = 1 
+                            AND EXISTS (SELECT 1 FROM pedidos p WHERE p.idcliente = c.idcliente)
+                            ORDER BY c.nombrecliente ASC
+                        ");
                         $stmt->execute();
                         $clientes = $stmt->get_result();
-                        
+
                         while ($cliente = $clientes->fetch_assoc()) {
-                            $stmt = $conn->prepare("SELECT COUNT(*) as total FROM pedidos WHERE idcliente = ?");
-                            $stmt->bind_param("i", $cliente["idcliente"]);
-                            $stmt->execute();
-                            $totalPedidos = $stmt->get_result()->fetch_assoc()["total"];
-                            
-                            if ($totalPedidos > 0) {
-                                echo '<option value="' . htmlspecialchars($cliente["idcliente"]) . '">' . htmlspecialchars($cliente["nombrecliente"]) . '</option>';
-                            }
+                            echo '<option value="' . htmlspecialchars($cliente["idcliente"]) . '">' . htmlspecialchars($cliente["nombrecliente"]) . '</option>';
                         }
+                        $stmt->close();
                         ?>
                     </select>
                     <input name="envio" type="submit" value="Enviar">
