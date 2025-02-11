@@ -6,19 +6,24 @@ $reg = isset($_POST["idclientes"]) ? 1 : 0;
 include "plus/header.lm";
 
 if ($reg === 1) {
-    // Consultar pedidos del cliente seleccionado
-    $idclientes = $_POST["idclientes"];
-    $stmt = $conn->prepare("SELECT * FROM pedidos WHERE idcliente = ?");
-    $stmt->bind_param("s", $idclientes);
-    $stmt->execute();
-    $result = $stmt->get_result();
-    $t2pedi2 = $result->num_rows;
-    
     // Consultar datos del cliente
+    $idclientes = intval($_POST["idclientes"]);
     $stmt = $conn->prepare("SELECT idcliente, nombrecliente FROM clientes WHERE idcliente = ?");
-    $stmt->bind_param("s", $idclientes);
+    $stmt->bind_param("i", $idclientes);
     $stmt->execute();
     $cliente = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+
+    // Consultar pedidos del cliente y unir con los productos en una sola consulta
+    $stmt = $conn->prepare("
+        SELECT p.idpedido, p.cantidadproducto, pr.idproducto, pr.nombreproducto 
+        FROM pedidos p
+        JOIN productos pr ON p.idproducto = pr.idproducto
+        WHERE p.idcliente = ?
+    ");
+    $stmt->bind_param("i", $idclientes);
+    $stmt->execute();
+    $pedidos = $stmt->get_result();
 }
 ?>
 
@@ -38,28 +43,15 @@ if ($reg === 1) {
                 <td width="76%">
                     <input name="ncliente" type="text" size="50" value="<?php echo htmlspecialchars($cliente['nombrecliente']); ?>" readonly>
                     <input name="idcliente" type="hidden" value="<?php echo htmlspecialchars($cliente['idcliente']); ?>">
-                    <input name="npedido" type="hidden" value="<?php echo $t2pedi2; ?>">
                 </td>
             </tr>
             <tr>
                 <td>Pedidos:</td>
                 <td>
-                    <?php
-                    $stmt = $conn->prepare("SELECT idpedido, cantidadproducto, idproducto FROM pedidos WHERE idcliente = ?");
-                    $stmt->bind_param("s", $cliente["idcliente"]);
-                    $stmt->execute();
-                    $pedidos = $stmt->get_result();
-
-                    while ($pedido = $pedidos->fetch_assoc()) {
-                        $stmt = $conn->prepare("SELECT nombreproducto FROM productos WHERE idproducto = ?");
-                        $stmt->bind_param("s", $pedido["idproducto"]);
-                        $stmt->execute();
-                        $producto = $stmt->get_result()->fetch_assoc()["nombreproducto"];
-
-                        echo '<input type="checkbox" name="pedido' . $pedido["idpedido"] . '" value="' . $pedido["idpedido"] . '">
-                              ' . $pedido["cantidadproducto"] . ' - (' . $pedido["idproducto"] . ') ' . htmlspecialchars($producto) . '<br>';
-                    }
-                    ?>
+                    <?php while ($pedido = $pedidos->fetch_assoc()): ?>
+                        <input type="checkbox" name="pedido<?php echo $pedido["idpedido"]; ?>" value="<?php echo $pedido["idpedido"]; ?>">
+                        <?php echo htmlspecialchars($pedido["cantidadproducto"] . " - (" . $pedido["idproducto"] . ") " . $pedido["nombreproducto"]); ?><br>
+                    <?php endwhile; ?>
                 </td>
             </tr>
             <tr>
@@ -67,6 +59,7 @@ if ($reg === 1) {
             </tr>
         </table>
     </form>
+    <?php $stmt->close(); ?>
 
 <?php else: ?>
     <form action="cf.php" method="post">
@@ -86,15 +79,9 @@ if ($reg === 1) {
                         $clientes = $stmt->get_result();
                         
                         while ($cliente = $clientes->fetch_assoc()) {
-                            $stmt = $conn->prepare("SELECT COUNT(*) as total FROM pedidos WHERE idcliente = ?");
-                            $stmt->bind_param("s", $cliente["idcliente"]);
-                            $stmt->execute();
-                            $totalPedidos = $stmt->get_result()->fetch_assoc()["total"];
-                            
-                            if ($totalPedidos > 0) {
-                                echo '<option value="' . htmlspecialchars($cliente["idcliente"]) . '">' . htmlspecialchars($cliente["nombrecliente"]) . '</option>';
-                            }
+                            echo '<option value="' . htmlspecialchars($cliente["idcliente"]) . '">' . htmlspecialchars($cliente["nombrecliente"]) . '</option>';
                         }
+                        $stmt->close();
                         ?>
                     </select>
                     <input name="envio" type="submit" value="Enviar">
