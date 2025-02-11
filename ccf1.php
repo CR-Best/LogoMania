@@ -2,13 +2,13 @@
 session_start();
 require_once "db.php";
 
-if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST["iddocumento"])) {
+if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["iddocumento"], $_POST["idcliente"], $_POST["subtotal"])) {
     $id_documento = intval($_POST["iddocumento"]);
     $id_cliente = intval($_POST["idcliente"]);
-    $fecha = $_POST["year"] . "-" . $_POST["mes"] . "-" . $_POST["dia"];
+    $fecha = filter_input(INPUT_POST, "fecha", FILTER_SANITIZE_STRING);
     $subtotal = floatval($_POST["subtotal"]);
-    $iva = $subtotal * 0.13;
-    $total = $subtotal + $iva;
+    $iva = round($subtotal * 0.13, 2);
+    $total = round($subtotal + $iva, 2);
 
     // Obtener datos del cliente
     $stmt = $conn->prepare("SELECT nombrecliente, dircliente FROM clientes WHERE idcliente = ?");
@@ -67,18 +67,18 @@ include "plus/header.lm";
             <td><strong>Registro</strong>:</td>
             <td>
                 <?php
-                $stmt = $conn->prepare("SELECT * FROM documentos_ccf WHERE idcliente = ?");
+                $stmt = $conn->prepare("SELECT registrocliente, girocliente FROM documentos_ccf WHERE idcliente = ?");
                 $stmt->bind_param("i", $_POST["idcliente"]);
                 $stmt->execute();
                 $cli1 = $stmt->get_result()->fetch_assoc();
                 $stmt->close();
                 ?>
-                <input name="registrocliente" type="text" size="15" value="<?php echo htmlspecialchars($cli1["registrocliente"]); ?>">
+                <input name="registrocliente" type="text" size="15" value="<?php echo htmlspecialchars($cli1["registrocliente"] ?? ''); ?>">
             </td>
         </tr>
         <tr>
             <td><strong>Giro</strong>:</td>
-            <td><input name="girocliente" type="text" size="50" value="<?php echo htmlspecialchars($cli1["girocliente"]); ?>"></td>
+            <td><input name="girocliente" type="text" size="50" value="<?php echo htmlspecialchars($cli1["girocliente"] ?? ''); ?>"></td>
         </tr>
         <tr>
             <td><strong>Fecha:</strong></td>
@@ -97,31 +97,31 @@ include "plus/header.lm";
                     </tr>
                     <?php
                     $total = 0;
-                    for ($u = 1; $u <= $_POST["npedido"]; $u++) {
-                        if (!isset($_POST["pedido$u"])) continue;
 
-                        $stmt = $conn->prepare("SELECT * FROM pedidos WHERE idpedido = ?");
-                        $stmt->bind_param("i", $_POST["pedido$u"]);
-                        $stmt->execute();
-                        $pedido = $stmt->get_result()->fetch_assoc();
-                        $stmt->close();
+                    // Obtener pedidos en una sola consulta
+                    $stmt = $conn->prepare("
+                        SELECT p.idpedido, p.cantidadproducto, p.precio, pr.nombreproducto 
+                        FROM pedidos p
+                        JOIN productos pr ON p.idproducto = pr.idproducto
+                        WHERE p.idcliente = ?
+                    ");
+                    $stmt->bind_param("i", $_POST["idcliente"]);
+                    $stmt->execute();
+                    $pedidos = $stmt->get_result();
 
-                        $stmt = $conn->prepare("SELECT nombreproducto FROM productos WHERE idproducto = ?");
-                        $stmt->bind_param("i", $pedido["idproducto"]);
-                        $stmt->execute();
-                        $producto = $stmt->get_result()->fetch_assoc()["nombreproducto"];
-                        $stmt->close();
-
-                        $precio = $pedido["cantidadproducto"] * ($pedido["precio"] / 1.13);
+                    while ($pedido = $pedidos->fetch_assoc()):
+                        $precio = round($pedido["cantidadproducto"] * ($pedido["precio"] / 1.13), 2);
                         $total += $precio;
                     ?>
                         <tr>
-                            <td><input name="cant<?php echo $u; ?>" type="text" size="3" value="<?php echo $pedido["cantidadproducto"]; ?>"></td>
-                            <td><textarea name="des<?php echo $u; ?>" cols="80" rows="2"><?php echo htmlspecialchars($producto); ?></textarea></td>
-                            <td align="right">$ <input name="pu<?php echo $u; ?>" type="text" size="6" value="<?php echo number_format($pedido["precio"] / 1.13, 2, '.', ''); ?>"></td>
-                            <td align="right">$ <input name="pt<?php echo $u; ?>" type="text" size="6" value="<?php echo number_format($precio, 2, '.', ''); ?>"></td>
+                            <td><input name="cant<?php echo $pedido["idpedido"]; ?>" type="text" size="3" value="<?php echo $pedido["cantidadproducto"]; ?>"></td>
+                            <td><textarea name="des<?php echo $pedido["idpedido"]; ?>" cols="80" rows="2"><?php echo htmlspecialchars($pedido["nombreproducto"]); ?></textarea></td>
+                            <td align="right">$ <input name="pu<?php echo $pedido["idpedido"]; ?>" type="text" size="6" value="<?php echo number_format($pedido["precio"] / 1.13, 2, '.', ''); ?>"></td>
+                            <td align="right">$ <input name="pt<?php echo $pedido["idpedido"]; ?>" type="text" size="6" value="<?php echo number_format($precio, 2, '.', ''); ?>"></td>
                         </tr>
-                    <?php } ?>
+                    <?php endwhile;
+                    $stmt->close();
+                    ?>
                 </table>
             </td>
         </tr>

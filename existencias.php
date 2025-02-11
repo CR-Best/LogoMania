@@ -11,15 +11,17 @@ include "plus/header.lm";
     <?php
     $sql = "
         SELECT m.idmaterial, m.nombrematerial, m.medidamaterial, 
-               IFNULL(i.cantidad_material, 0) AS existencias, 
-               IFNULL(i.costomaterial, 0) AS costo
+               COALESCE(i.cantidad_material, 0) AS existencias, 
+               COALESCE(i.costomaterial, 0) AS costo
         FROM material m
         LEFT JOIN inventario i ON m.idmaterial = i.idmaterial
     ";
+
     $stmt = $conn->prepare($sql);
     $stmt->execute();
     $result = $stmt->get_result();
     $total = $result->num_rows;
+    $stmt->close();
 
     echo "<tr><td colspan=3 class='titulo'>Registros encontrados: <b>$total</b></td></tr>";
     ?>
@@ -32,15 +34,15 @@ include "plus/header.lm";
         <tr>
             <td>
                 <?php if ($res["existencias"] > 0): ?>
-                    <a href="invsalida.php?idmaterial=<?php echo $res['idmaterial']; ?>">
-                        <?php echo htmlspecialchars($res["nombrematerial"]); ?>
+                    <a href="invsalida.php?idmaterial=<?php echo intval($res['idmaterial']); ?>">
+                        <?php echo htmlspecialchars($res["nombrematerial"], ENT_QUOTES, 'UTF-8'); ?>
                     </a>
                 <?php else: ?>
-                    <?php echo htmlspecialchars($res["nombrematerial"]); ?>
+                    <?php echo htmlspecialchars($res["nombrematerial"], ENT_QUOTES, 'UTF-8'); ?>
                 <?php endif; ?>
             </td>
-            <td align="center">$ <?php echo number_format($res["costo"], 2, '.', ''); ?></td>
-            <td align="center"><?php echo $res["existencias"] . " " . htmlspecialchars($res["medidamaterial"]); ?></td>
+            <td align="center">$ <?php echo number_format(floatval($res["costo"]), 2, '.', ''); ?></td>
+            <td align="center"><?php echo intval($res["existencias"]) . " " . htmlspecialchars($res["medidamaterial"], ENT_QUOTES, 'UTF-8'); ?></td>
         </tr>
     <?php endwhile; ?>
 </table>

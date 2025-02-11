@@ -1,39 +1,54 @@
-<?php 
-include("plus/conexion.lm");
+<?php
 session_start();
+require_once "db.php"; // Conexión segura con MySQLi
 
-if(!isset($_SESSION["user"]))
-	header("location:index.php");
-
-
-$fechapedido=$_POST["apedido"]."/".$_POST["mpedido"]."/".$_POST["dpedido"];
-
-$fechaentrega=$_POST["aentrega"]."/".$_POST["mentrega"]."/".$_POST["dentrega"];
-$idpedido=100;
-$flag=1;
-while($flag==1)
-{
-	$idpedido++;
-	$consulta=mysql_query("SELECT * FROM pedidos WHERE idpedido=\"$idpedido\" AND 		idcliente=\"$_POST[idclientes]\"", $conectar);
-
-	if(mysql_num_rows($consulta)==0)
-		$flag=2;
+// Verificar si el usuario ha iniciado sesión
+if (!isset($_SESSION["user"])) {
+    header("Location: index.php");
+    exit();
 }
 
-$sql = "INSERT INTO pedidos VALUES (\"$idpedido\", \"$_POST[idclientes]\", \"$fechapedido\",  \"$fechaentrega\", \"$_POST[idproducto]\", \"$_POST[descripcion]\", \"$_POST[precioventaproducto]\", \"$_POST[anticipo]\", \"$_POST[cantidadproducto]\", \"1\", \"$_SESSION[user]\")"; 
-$ejecutar=mysql_query($sql,$conectar);
-if($ejecutar)
-{
-	if($_POST["ag"]==2)
-	{
-	header("location:npedido.php?id=$_POST[idclientes]&msg=ok");
-	}
-	else
-	{
-	header("location:vpedido.php?cri=1");
-	}
+// Validar si los datos fueron enviados por POST
+if ($_SERVER["REQUEST_METHOD"] !== "POST" || !isset($_POST["idclientes"], $_POST["idproducto"], $_POST["descripcion"])) {
+    header("Location: sistema.php?msg=error_input");
+    exit();
 }
 
-else 
-("location:sistema.php?msg=er");
+// Recoger datos y sanitizarlos
+$id_cliente = intval($_POST["idclientes"]);
+$id_producto = intval($_POST["idproducto"]);
+$descripcion = htmlspecialchars($_POST["descripcion"]);
+$precio = floatval($_POST["precioventaproducto"]);
+$anticipo = floatval($_POST["anticipo"]);
+$cantidad = intval($_POST["cantidadproducto"]);
+$usuario = $_SESSION["user"];
+$fecha_pedido = "{$_POST['apedido']}-{$_POST['mpedido']}-{$_POST['dpedido']}";
+$fecha_entrega = "{$_POST['aentrega']}-{$_POST['mentrega']}-{$_POST['dentrega']}";
+
+// Generar un nuevo ID de pedido único
+$stmt = $conn->prepare("SELECT MAX(idpedido) FROM pedidos WHERE idcliente = ?");
+$stmt->bind_param("i", $id_cliente);
+$stmt->execute();
+$stmt->bind_result($max_id);
+$stmt->fetch();
+$id_pedido = $max_id ? $max_id + 1 : 101;
+$stmt->close();
+
+// Insertar pedido en la base de datos
+$stmt = $conn->prepare("
+    INSERT INTO pedidos (idpedido, idcliente, fechapedido, fechaentrega, idproducto, descripcion, precio, anticipo, cantidadproducto, estadopedido, usuario)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
+");
+$stmt->bind_param("iisssddiis", $id_pedido, $id_cliente, $fecha_pedido, $fecha_entrega, $id_producto, $descripcion, $precio, $anticipo, $cantidad, $usuario);
+
+if ($stmt->execute()) {
+    $stmt->close();
+    $redirect_url = ($_POST["ag"] == 2) ? "npedido.php?id=$id_cliente&msg=ok" : "vpedido.php?cri=1";
+    header("Location: $redirect_url");
+    exit();
+} else {
+    $stmt->close();
+    header("Location: sistema.php?msg=error_db");
+    exit();
+}
 ?>

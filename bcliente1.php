@@ -22,15 +22,15 @@ function confirmarEliminacion(url, cliente) {
         </td>
     </tr>
     <?php
-    $criterio = trim($_POST["busqueda"]);
-    $separar = explode(" ", $criterio);
-    $busqueda = "%" . implode("%", $separar) . "%";
+    $criterio = filter_input(INPUT_POST, "busqueda", FILTER_SANITIZE_STRING);
+    $busqueda = "%{$criterio}%";
 
-    $stmt = $conn->prepare("SELECT * FROM clientes WHERE nombrecliente LIKE ?");
+    $stmt = $conn->prepare("SELECT idcliente, nombrecliente FROM clientes WHERE nombrecliente LIKE ?");
     $stmt->bind_param("s", $busqueda);
     $stmt->execute();
     $buscar = $stmt->get_result();
     $total = $buscar->num_rows;
+    $stmt->close();
     
     echo "<tr><td colspan=5 class=titulo>Registros encontrados: <b>$total</b></td></tr>";
     ?>
@@ -62,15 +62,17 @@ function confirmarEliminacion(url, cliente) {
             <td align="center">
                 <?php
                 $stmt_check = $conn->prepare("
-                    SELECT 'pedido' AS source FROM pedidos WHERE idcliente = ?
-                    UNION
-                    SELECT 'ccf' FROM ccf WHERE idcliente = ?
-                    UNION
-                    SELECT 'cf' FROM cf WHERE idcliente = ?
+                    SELECT EXISTS(
+                        SELECT 1 FROM pedidos WHERE idcliente = ? 
+                        UNION 
+                        SELECT 1 FROM ccf WHERE idcliente = ? 
+                        UNION 
+                        SELECT 1 FROM cf WHERE idcliente = ?
+                    ) AS has_dependencias
                 ");
                 $stmt_check->bind_param("iii", $res["idcliente"], $res["idcliente"], $res["idcliente"]);
                 $stmt_check->execute();
-                $has_dependencias = $stmt_check->get_result()->num_rows > 0;
+                $has_dependencias = $stmt_check->get_result()->fetch_assoc()["has_dependencias"];
                 $stmt_check->close();
 
                 if ($has_dependencias):

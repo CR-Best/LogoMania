@@ -32,7 +32,7 @@ include "plus/header.lm";
 <table width="90%" border="3" align="center" cellpadding="4" cellspacing="4" bordercolor="#164E7F">
     <tr>
         <td colspan="2" class="titulo">
-            <strong>Historial de <?php echo htmlspecialchars($datos["nombrecliente"]); ?></strong>
+            <strong>Historial de <?php echo htmlspecialchars($datos["nombrecliente"], ENT_QUOTES, 'UTF-8'); ?></strong>
             <br><br>
         </td>
     </tr>
@@ -54,29 +54,28 @@ include "plus/header.lm";
 
     if ($pedidos->num_rows > 0):
         while ($res = $pedidos->fetch_assoc()):
-            $imagen = "pendiente";
-            if ($res["estadopedido"] == 2) $imagen = "proceso";
-            if ($res["estadopedido"] == 3) $imagen = "terminado";
-
-            $fecha_entrega = date("Y/m/d", strtotime($res["fechaentrega"]));
-            $fecha_pedido = date("Y/m/d", strtotime($res["fechapedido"]));
-    ?>
-        <tr>
-            <td colspan="2">
-                <img src="img/<?php echo $imagen; ?>.jpg" align="right" width="100" height="80">
-                <b>Fecha de pedido:</b> <?php echo $fecha_pedido; ?> - 
-                <b>Fecha de Entrega:</b> <?php echo $fecha_entrega; ?><br>
-                <b>Detalle:</b> <?php echo htmlspecialchars($res["cantidadproducto"]); ?> - 
-                (<?php echo htmlspecialchars($res["idproducto"]); ?>) <?php echo htmlspecialchars($res["nombreproducto"]); ?><br>
-                <b>Precio:</b> $<?php echo number_format($res["precio"], 2, '.', ''); ?><br>
-                <b>Descripción:</b> <?php echo htmlspecialchars($res["descripcion"]); ?><br><br>
-                <hr>
-            </td>
-        </tr>
-    <?php
+            $imagen = match ($res["estadopedido"]) {
+                2 => "proceso",
+                3 => "terminado",
+                default => "pendiente",
+            };
+            ?>
+            <tr>
+                <td colspan="2">
+                    <img src="img/<?php echo $imagen; ?>.jpg" align="right" width="100" height="80">
+                    <b>Fecha de pedido:</b> <?php echo date("Y/m/d", strtotime($res["fechapedido"])); ?> - 
+                    <b>Fecha de Entrega:</b> <?php echo date("Y/m/d", strtotime($res["fechaentrega"])); ?><br>
+                    <b>Detalle:</b> <?php echo intval($res["cantidadproducto"]); ?> - 
+                    (<?php echo htmlspecialchars($res["idproducto"], ENT_QUOTES, 'UTF-8'); ?>) <?php echo htmlspecialchars($res["nombreproducto"], ENT_QUOTES, 'UTF-8'); ?><br>
+                    <b>Precio:</b> $<?php echo number_format($res["precio"], 2, '.', ''); ?><br>
+                    <b>Descripción:</b> <?php echo nl2br(htmlspecialchars($res["descripcion"], ENT_QUOTES, 'UTF-8')); ?><br><br>
+                    <hr>
+                </td>
+            </tr>
+        <?php
         endwhile;
     else:
-    ?>
+        ?>
         <tr>
             <td colspan="2">Actualmente no hay pedidos para este cliente.</td>
         </tr>
@@ -90,46 +89,54 @@ include "plus/header.lm";
         <td colspan="2" class="titulo">Documentos emitidos</td>
     </tr>
     <?php
-    $tabla_documento = ($datos["tipodocumento"] == 2) ? "cf" : "ccf";
+    // Determinar la tabla de documentos de manera segura
+    $tabla_documento = match ($datos["tipodocumento"]) {
+        1 => "ccf",
+        2 => "cf",
+        default => null,
+    };
 
-    $stmt = $conn->prepare("SELECT * FROM $tabla_documento WHERE idcliente = ?");
-    $stmt->bind_param("i", $idcliente);
-    $stmt->execute();
-    $documentos = $stmt->get_result();
+    if ($tabla_documento) {
+        $stmt = $conn->prepare("
+            SELECT d.*, da.iddocumento AS anulado
+            FROM $tabla_documento d
+            LEFT JOIN documentos_anulados da ON d.iddocumento = da.iddocumento
+            WHERE d.idcliente = ?
+        ");
+        $stmt->bind_param("i", $idcliente);
+        $stmt->execute();
+        $documentos = $stmt->get_result();
 
-    if ($documentos->num_rows > 0):
-        $o = 0;
-        while ($res = $documentos->fetch_assoc()):
-            $o++;
-            $fecha_doc = date("Y/m/d", strtotime($res["fechadocumento"]));
-    ?>
-        <tr>
-            <td colspan="2">
-                <?php echo $o; ?>- Documento #<?php echo $res["iddocumento"]; ?>. Emitido en: <?php echo $fecha_doc; ?>
-                <?php
-                // Verificar si el documento está anulado
-                $stmt_anulado = $conn->prepare("SELECT * FROM documentos_anulados WHERE iddocumento = ?");
-                $stmt_anulado->bind_param("i", $res["iddocumento"]);
-                $stmt_anulado->execute();
-                if ($stmt_anulado->get_result()->num_rows > 0) {
-                    echo " (ANULADO)";
-                }
-                $stmt_anulado->close();
+        if ($documentos->num_rows > 0):
+            $o = 0;
+            while ($res = $documentos->fetch_assoc()):
+                $o++;
                 ?>
-                <br><b>Detalle:</b><br><?php echo nl2br(htmlspecialchars($res["detalledocumento"])); ?>
-                <br><hr>
-            </td>
-        </tr>
-    <?php
-        endwhile;
-    else:
-    ?>
+                <tr>
+                    <td colspan="2">
+                        <?php echo $o; ?>- Documento #<?php echo intval($res["iddocumento"]); ?>. Emitido en: <?php echo date("Y/m/d", strtotime($res["fechadocumento"])); ?>
+                        <?php if ($res["anulado"]): ?> (ANULADO) <?php endif; ?>
+                        <br><b>Detalle:</b><br><?php echo nl2br(htmlspecialchars($res["detalledocumento"], ENT_QUOTES, 'UTF-8')); ?>
+                        <br><hr>
+                    </td>
+                </tr>
+            <?php
+            endwhile;
+        else:
+            ?>
+            <tr>
+                <td colspan="2">Actualmente no hay documentos emitidos para este cliente.</td>
+            </tr>
+        <?php
+        endif;
+        $stmt->close();
+    } else {
+        ?>
         <tr>
-            <td colspan="2">Actualmente no hay documentos emitidos para este cliente.</td>
+            <td colspan="2">Tipo de documento desconocido.</td>
         </tr>
-    <?php
-    endif;
-    $stmt->close();
+        <?php
+    }
     ?>
 </table>
 

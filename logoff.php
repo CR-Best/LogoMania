@@ -1,113 +1,145 @@
 <?php
 session_start();
-session_destroy(); 
+require_once "db.php";
 
+if (!isset($_GET["id"]) || !is_numeric($_GET["id"])) {
+    header("Location: bcliente.php");
+    exit();
+}
 
+$idcliente = intval($_GET["id"]);
 
+// Obtener datos del cliente
+$stmt = $conn->prepare("SELECT * FROM clientes WHERE idcliente = ?");
+$stmt->bind_param("i", $idcliente);
+$stmt->execute();
+$result = $stmt->get_result();
 
+if ($result->num_rows === 0) {
+    header("Location: bcliente.php");
+    exit();
+}
+
+$datos = $result->fetch_assoc();
+$stmt->close();
+
+include "plus/header.lm";
 ?>
 
-
-
-<script language="javascript" type="text/javascript">
-function MostrarFecha()
-   {
-	   var nombres_dias = new Array("Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado")
-	   var nombres_meses = new Array("Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre")
-	
-	   var fecha_actual = new Date()
-	
-	   dia_mes = fecha_actual.getDate()	
-	   dia_semana = fecha_actual.getDay()	
-	   mes = fecha_actual.getMonth() + 1
-	   anio = fecha_actual.getFullYear()
-	
-	   document.write(nombres_dias[dia_semana] + ", " + dia_mes + " de " + nombres_meses[mes - 1] + " de " + anio)
-   }
-
-
-
-function tiempin()
-{
-timer = setTimeout("redi()", 5000);;
-
-
-}
-function redi()
-{
-	
-	self.close();
-
-
-}
-
-</script>
-
-
-
-
-
-
-
-
-<link href="plus/estilo.css" rel="stylesheet" type="text/css" />
-
-<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
-<html xmlns="http://www.w3.org/1999/xhtml">
-<head>
-<meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1" />
-<title>Saliendo de ...::: LoGoMaNiA :::...</title>
-</head>
-
-<body onload="tiempin();">
-<table width="1%" border="0" cellspacing="0" cellpadding="0" align="center" >
-  <tr>
-    <td><table width="1%%" border="5" cellpadding="5" cellspacing="5" bordercolor="#164E7F">
-  <tr>
-    <td><img src="top.jpg" /></td>
-  </tr>
-  <tr>
-    <td align="right" bgcolor="#F27427">&nbsp;</td>
-  </tr>
-  <tr>
-    <td align="left" bgcolor="#FFFFFF">
-
-<table width="100%" border="0" cellspacing="0" cellpadding="0">
-<tr>
-<td align=left>
-	<span class="fecha">
-	<script language="JavaScript" type="text/javascript">
-	MostrarFecha();
-	</script> </span><br>
-<object classid="clsid:D27CDB6E-AE6D-11cf-96B8-444553540000" codebase="http://download.macromedia.com/pub/shockwave/cabs/flash/swflash.cab#version=7,0,19,0" width="135" height="50">
-  <param name="movie" value="img/reloj.swf?id=<?php echo rand(1111,9999); ?>" />
-  <param name="quality" value="high" />
-  <embed src="img/reloj.swf?id=<?php echo rand(1111,9999); ?>" quality="high" pluginspage="http://www.macromedia.com/go/getflashplayer" type="application/x-shockwave-flash" width="135" height="50"></embed>
-</object></td>
-
-<td align=right valign=top>&nbsp;
-</td></tr></table>
+<body>
+<?php include "plus/top.lm"; ?>
 
 <table width="90%" border="3" align="center" cellpadding="4" cellspacing="4" bordercolor="#164E7F">
+    <tr>
+        <td colspan="2" class="titulo">
+            <strong>Historial de <?php echo htmlspecialchars($datos["nombrecliente"], ENT_QUOTES, 'UTF-8'); ?></strong>
+            <br><br>
+        </td>
+    </tr>
+
+    <!-- Pedidos Actuales -->
+    <tr>
+        <td colspan="2" class="titulo">Pedidos Actuales</td>
+    </tr>
+    <?php
+    $stmt = $conn->prepare("
+        SELECT p.*, pr.nombreproducto 
+        FROM pedidos p 
+        JOIN productos pr ON p.idproducto = pr.idproducto 
+        WHERE p.idcliente = ?
+    ");
+    $stmt->bind_param("i", $idcliente);
+    $stmt->execute();
+    $pedidos = $stmt->get_result();
+
+    if ($pedidos->num_rows > 0):
+        while ($res = $pedidos->fetch_assoc()):
+            $imagen = match ($res["estadopedido"]) {
+                2 => "proceso",
+                3 => "terminado",
+                default => "pendiente",
+            };
+            ?>
+            <tr>
+                <td colspan="2">
+                    <img src="img/<?php echo $imagen; ?>.jpg" align="right" width="100" height="80">
+                    <b>Fecha de pedido:</b> <?php echo date("Y/m/d", strtotime($res["fechapedido"])); ?> - 
+                    <b>Fecha de Entrega:</b> <?php echo date("Y/m/d", strtotime($res["fechaentrega"])); ?><br>
+                    <b>Detalle:</b> <?php echo intval($res["cantidadproducto"]); ?> - 
+                    (<?php echo htmlspecialchars($res["idproducto"], ENT_QUOTES, 'UTF-8'); ?>) <?php echo htmlspecialchars($res["nombreproducto"], ENT_QUOTES, 'UTF-8'); ?><br>
+                    <b>Precio:</b> $<?php echo number_format($res["precio"], 2, '.', ''); ?><br>
+                    <b>DescripciÃ³n:</b> <?php echo nl2br(htmlspecialchars($res["descripcion"], ENT_QUOTES, 'UTF-8')); ?><br><br>
+                    <hr>
+                </td>
+            </tr>
+        <?php
+        endwhile;
+    else:
+        ?>
         <tr>
-          <td width="50" class="titulo">HA SALIDO DEL SISTEMA!!!! </td>
-          </tr>
-        <tr>
-          <td>Esta ventana se cerrara en 5 segundos. </td>
+            <td colspan="2">Actualmente no hay pedidos para este cliente.</td>
         </tr>
+    <?php
+    endif;
+    $stmt->close();
+    ?>
+
+    <!-- Documentos Emitidos -->
+    <tr>
+        <td colspan="2" class="titulo">Documentos emitidos</td>
+    </tr>
+    <?php
+    // Determinar la tabla de documentos de manera segura
+    $tabla_documento = match ($datos["tipodocumento"]) {
+        1 => "ccf",
+        2 => "cf",
+        default => null,
+    };
+
+    if ($tabla_documento) {
+        $stmt = $conn->prepare("
+            SELECT d.*, da.iddocumento AS anulado
+            FROM $tabla_documento d
+            LEFT JOIN documentos_anulados da ON d.iddocumento = da.iddocumento
+            WHERE d.idcliente = ?
+        ");
+        $stmt->bind_param("i", $idcliente);
+        $stmt->execute();
+        $documentos = $stmt->get_result();
+
+        if ($documentos->num_rows > 0):
+            $o = 0;
+            while ($res = $documentos->fetch_assoc()):
+                $o++;
+                ?>
+                <tr>
+                    <td colspan="2">
+                        <?php echo $o; ?>- Documento #<?php echo intval($res["iddocumento"]); ?>. Emitido en: <?php echo date("Y/m/d", strtotime($res["fechadocumento"])); ?>
+                        <?php if ($res["anulado"]): ?> (ANULADO) <?php endif; ?>
+                        <br><b>Detalle:</b><br><?php echo nl2br(htmlspecialchars($res["detalledocumento"], ENT_QUOTES, 'UTF-8')); ?>
+                        <br><hr>
+                    </td>
+                </tr>
+            <?php
+            endwhile;
+        else:
+            ?>
+            <tr>
+                <td colspan="2">Actualmente no hay documentos emitidos para este cliente.</td>
+            </tr>
+        <?php
+        endif;
+        $stmt->close();
+    } else {
+        ?>
+        <tr>
+            <td colspan="2">Tipo de documento desconocido.</td>
+        </tr>
+        <?php
+    }
+    ?>
 </table>
 
-</td>
-  </tr>
-  <tr>
-    <td align="center" bgcolor="#FFFFFF"><img src="img/derechos.jpg" width="400" height="120" /></td>
-  </tr>
-</table>
-</td>
-  </tr>
-</table>
-</body>
-</html>
-
+<?php include "plus/bottom.lm"; ?>
 </body>
 </html>

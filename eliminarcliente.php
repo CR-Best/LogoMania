@@ -11,15 +11,17 @@ $idcliente = intval($_GET["id"]);
 
 // Verificar si el cliente tiene dependencias
 $stmt = $conn->prepare("
-    SELECT 'pedido' AS source FROM pedidos WHERE idcliente = ?
-    UNION
-    SELECT 'ccf' FROM ccf WHERE idcliente = ?
-    UNION
-    SELECT 'cf' FROM cf WHERE idcliente = ?
+    SELECT EXISTS(
+        SELECT 1 FROM pedidos WHERE idcliente = ? 
+        UNION 
+        SELECT 1 FROM ccf WHERE idcliente = ? 
+        UNION 
+        SELECT 1 FROM cf WHERE idcliente = ?
+    ) AS has_dependencias
 ");
 $stmt->bind_param("iii", $idcliente, $idcliente, $idcliente);
 $stmt->execute();
-$has_dependencias = $stmt->get_result()->num_rows > 0;
+$has_dependencias = $stmt->get_result()->fetch_assoc()["has_dependencias"];
 $stmt->close();
 
 if ($has_dependencias) {
@@ -27,7 +29,7 @@ if ($has_dependencias) {
     exit();
 }
 
-// Verificar si el cliente existe
+// Verificar si el cliente existe antes de eliminar
 $stmt = $conn->prepare("SELECT idcliente FROM clientes WHERE idcliente = ?");
 $stmt->bind_param("i", $idcliente);
 $stmt->execute();
@@ -39,23 +41,37 @@ if ($result->num_rows === 0) {
 }
 $stmt->close();
 
-// Eliminar registros relacionados antes del cliente
-$stmt = $conn->prepare("DELETE FROM documentos_ccf WHERE idcliente = ?");
-$stmt->bind_param("i", $idcliente);
-$stmt->execute();
-$stmt->close();
+// Eliminar registros relacionados primero
+$conn->begin_transaction();
 
-$stmt = $conn->prepare("DELETE FROM documentos_cf WHERE idcliente = ?");
-$stmt->bind_param("i", $idcliente);
-$stmt->execute();
-$stmt->close();
+try {
+    $stmt = $conn->prepare("DELETE FROM documentos_ccf WHERE idcliente = ?");
+    $stmt->bind_param("i", $idcliente);
+    $stmt->execute();
+    $stmt->close();
 
-// Eliminar el cliente
-$stmt = $conn->prepare("DELETE FROM clientes WHERE idcliente = ?");
-$stmt->bind_param("i", $idcliente);
-$stmt->execute();
-$stmt->close();
+    $stmt = $conn->prepare("DELETE FROM documentos_cf WHERE idcliente = ?");
+    $stmt->bind_param("i", $idcliente);
+    $stmt->execute();
+    $stmt->close();
 
-header("Location: sistema.php?msg=cb");
-exit();
+    // Eliminar el cliente
+    $stmt = $conn->prepare("DELETE FROM clientes WHERE idcliente = ?");
+    $stmt->bind_param("i", $idcliente);
+    $stmt->execute();
+    
+    if ($stmt->affected_rows === 0) {
+        throw new Exception("Error al eliminar el cliente.");
+    }
+
+    $stmt->close();
+    $conn->commit();
+    
+    header("Location: sistema.php?msg=cb");
+    exit();
+} catch (Exception $e) {
+    $conn->rollback();
+    header("Location: sistema.php?msg=error");
+    exit();
+}
 ?>

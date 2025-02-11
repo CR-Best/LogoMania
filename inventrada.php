@@ -2,14 +2,14 @@
 session_start();
 require_once "db.php";
 
-if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST["finalizar"])) {
-    $idmaterial = intval($_POST["idmaterial"]);
-    $num_doc = htmlspecialchars($_POST["num"]);
-    $cantidad_material = floatval($_POST["cantidad_material"]);
-    $precio_unitario = floatval($_POST["preciounitario"]);
-    $fechaentrada = "{$_POST["year"]}-{$_POST["mes"]}-{$_POST["dia"]}";
+if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["finalizar"])) {
+    $idmaterial = filter_input(INPUT_POST, "idmaterial", FILTER_VALIDATE_INT);
+    $num_doc = htmlspecialchars($_POST["num"], ENT_QUOTES, 'UTF-8');
+    $cantidad_material = filter_input(INPUT_POST, "cantidad_material", FILTER_VALIDATE_FLOAT);
+    $precio_unitario = filter_input(INPUT_POST, "preciounitario", FILTER_VALIDATE_FLOAT);
+    $fechaentrada = filter_input(INPUT_POST, "fecha_compra", FILTER_SANITIZE_STRING);
 
-    if ($idmaterial <= 0 || $cantidad_material <= 0 || $precio_unitario <= 0) {
+    if (!$idmaterial || !$cantidad_material || !$precio_unitario) {
         header("Location: inventrada.php?msg=invalid_input");
         exit();
     }
@@ -20,6 +20,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST["finalizar"])) {
     $stmt->execute();
     $result = $stmt->get_result();
     $flage = ($result->num_rows > 0);
+    $stmt->close();
 
     if ($flage) {
         $row = $result->fetch_assoc();
@@ -29,7 +30,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST["finalizar"])) {
         $new_cantidad = $cantidad_material;
         $new_costo = $precio_unitario;
     }
-    $stmt->close();
 
     // Insertar la entrada en inventario
     $stmt = $conn->prepare("INSERT INTO entradas_inventario (fechaentrada, ndocumento, idmaterial, cantidad_material, costomaterial) VALUES (?, ?, ?, ?, ?)");
@@ -92,7 +92,7 @@ function nv(pagina) {
                     $result = $stmt->get_result();
 
                     while ($row = $result->fetch_assoc()) {
-                        echo "<option value=\"{$row["idmaterial"]}\" " . ($row["idmaterial"] == $idmaterial ? "selected" : "") . ">" . htmlspecialchars($row["nombrematerial"]) . "</option>";
+                        echo "<option value=\"" . intval($row["idmaterial"]) . "\" " . ($row["idmaterial"] == $idmaterial ? "selected" : "") . ">" . htmlspecialchars($row["nombrematerial"]) . "</option>";
                     }
                     ?>
                     <option value="0">Seleccione un material</option>

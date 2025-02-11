@@ -5,10 +5,6 @@ include "plus/header.lm";
 ?>
 
 <script>
-document.addEventListener("DOMContentLoaded", function () {
-    document.getElementById("busqueda").focus();
-});
-
 function cancelarBusqueda() {
     window.location.href = "sistema.php";
 }
@@ -29,7 +25,7 @@ function cancelarBusqueda() {
         <tr>
             <td width="24%"><label for="busqueda"><b>Nombre del Cliente:</b></label></td>
             <td width="76%">
-                <input name="busqueda" id="busqueda" type="text" size="50" required />
+                <input name="busqueda" id="busqueda" type="text" size="50" required autofocus />
             </td>
         </tr>
         <tr>

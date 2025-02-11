@@ -2,43 +2,49 @@
 session_start();
 require_once "db.php";
 
-if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST["flag"])) {
-    $id_documento = intval($_POST["iddocumento"]);
-    $tipo_documento = intval($_POST["tipodocumento"]);
-    $motivo = htmlspecialchars($_POST["motivo"]);
-    $fecha = $_POST["apedido"] . "-" . $_POST["mpedido"] . "-" . $_POST["dpedido"];
+if ($_SERVER["REQUEST_METHOD"] === "POST") {
+    if (isset($_POST["flag"])) {
+        // Anular documento
+        $id_documento = intval($_POST["iddocumento"]);
+        $tipo_documento = intval($_POST["tipodocumento"]);
+        $motivo = htmlspecialchars($_POST["motivo"], ENT_QUOTES, 'UTF-8');
+        $fecha = filter_input(INPUT_POST, "fecha_anulacion", FILTER_SANITIZE_STRING);
 
-    // Insertar documento anulado
-    $stmt = $conn->prepare("INSERT INTO documentos_anulados (iddocumento, tipodocumento, fechaanulada, motivo) VALUES (?, ?, ?, ?)");
-    $stmt->bind_param("iiss", $id_documento, $tipo_documento, $fecha, $motivo);
-    $stmt->execute();
-    $stmt->close();
+        // Insertar documento anulado
+        $stmt = $conn->prepare("INSERT INTO documentos_anulados (iddocumento, tipodocumento, fechaanulada, motivo) VALUES (?, ?, ?, ?)");
+        $stmt->bind_param("iiss", $id_documento, $tipo_documento, $fecha, $motivo);
+        $stmt->execute();
+        $stmt->close();
 
-    header("Location: anular.php");
-    exit();
-}
-
-// Si se envió un número de documento para anular
-if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST["numdoc"])) {
-    $numdoc = intval($_POST["numdoc"]);
-    $tipo_documento = intval($_POST["tipodocumento"]);
-    
-    $tabla = ($tipo_documento == 1) ? "ccf" : "cf";
-    $titulo_documento = ($tipo_documento == 1) ? "Comprobante de Crédito Fiscal #" : "Consumidor Final #";
-
-    // Obtener datos del documento
-    $stmt = $conn->prepare("SELECT * FROM $tabla WHERE iddocumento = ?");
-    $stmt->bind_param("i", $numdoc);
-    $stmt->execute();
-    $datos_factura = $stmt->get_result()->fetch_assoc();
-    $stmt->close();
-
-    if (!$datos_factura) {
         header("Location: anular.php");
         exit();
     }
 
-    $fecha_emision = new DateTime($datos_factura["fechadocumento"]);
+    if (isset($_POST["numdoc"], $_POST["tipodocumento"])) {
+        $numdoc = intval($_POST["numdoc"]);
+        $tipo_documento = intval($_POST["tipodocumento"]);
+        
+        // Validar tipo de documento
+        $tabla = ($tipo_documento === 1) ? "ccf" : (($tipo_documento === 2) ? "cf" : null);
+        $titulo_documento = ($tipo_documento === 1) ? "Comprobante de Crédito Fiscal #" : "Consumidor Final #";
+
+        if (!$tabla) {
+            header("Location: anular.php");
+            exit();
+        }
+
+        // Obtener datos del documento
+        $stmt = $conn->prepare("SELECT * FROM $tabla WHERE iddocumento = ?");
+        $stmt->bind_param("i", $numdoc);
+        $stmt->execute();
+        $datos_factura = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+
+        if (!$datos_factura) {
+            header("Location: anular.php");
+            exit();
+        }
+    }
 }
 
 include "plus/header.lm";
@@ -63,7 +69,7 @@ function nv(pagina) {
             </tr>
             <tr>
                 <td width="50%">Ingrese el número de documento:</td>
-                <td><input name="numdoc" type="text"></td>        
+                <td><input name="numdoc" type="number" required></td>        
             </tr>
             <tr>
                 <td>Seleccione el tipo de documento:</td>
@@ -112,14 +118,14 @@ function nv(pagina) {
             </tr>
             <tr>
                 <td>Motivo:</td>
-                <td><textarea name="motivo" cols="50" rows="5"></textarea></td>
+                <td><textarea name="motivo" cols="50" rows="5" required></textarea></td>
             </tr>
             <tr>
-                <td colspan="2">Detalles:<br><?php echo htmlspecialchars($datos_factura["detalledocumento"]); ?></td>
+                <td colspan="2">Detalles:<br><?php echo htmlspecialchars($datos_factura["detalledocumento"] ?? ""); ?></td>
             </tr>
             <tr>
                 <td colspan="2" align="center">
-                    <input type="hidden" name="flag">
+                    <input type="hidden" name="flag" value="1">
                     <input type="submit" name="Submit" value="Anular">
                     <input type="button" onclick="window.location.href='sistema.php';" value="Cancelar">
                 </td>

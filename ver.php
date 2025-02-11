@@ -1,13 +1,14 @@
 <?php 
 include("plus/conexion.lm");
 
+// Conexión segura con MySQLi
+$stmt = $conectar->prepare("SELECT * FROM ccf");
+$stmt->execute();
+$result = $stmt->get_result();
 
-$con=mysql_query("SELECT * FROM ccf",$conectar);
-
-while($si=mysql_fetch_array($con))
-{
-	echo $si[2];
-
-
-
+while ($row = $result->fetch_assoc()) {
+    echo htmlspecialchars($row["nombre_columna"]) . "<br>"; // Reemplaza "nombre_columna" con la columna correcta
 }
+
+$stmt->close();
+?>

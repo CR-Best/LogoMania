@@ -1,262 +1,156 @@
 <?php 
-include("plus/conexion.lm");
+session_start();
+require_once "db.php";
 
-if(isset($_POST["idmaterial"]) && $_POST["idmaterial"]!="1" && !isset($_POST["ag"]))
-{
-	header("location:invsalida.php?idmaterial=$_POST[idmaterial]");
+if ($_SERVER["REQUEST_METHOD"] === "POST") {
+    if (isset($_POST["idmaterial"]) && $_POST["idmaterial"] !== "1" && !isset($_POST["ag"])) {
+        header("Location: invsalida.php?idmaterial=" . intval($_POST["idmaterial"]));
+        exit();
+    }
 
+    if (isset($_POST["ag"])) {
+        $idmaterial = intval($_POST["idmaterial"]);
+        $cantidad_actual = floatval($_POST["cantidadactual"]);
+        $cantidad_salida = floatval($_POST["cantidad_material"]);
 
+        if ($cantidad_salida <= 0 || $cantidad_salida > $cantidad_actual) {
+            header("Location: invsalida.php?msg=invalid_quantity");
+            exit();
+        }
+
+        $conn->begin_transaction();
+        try {
+            // Actualizar inventario
+            $stmt = $conn->prepare("UPDATE inventario SET cantidad_material = cantidad_material - ? WHERE idmaterial = ?");
+            $stmt->bind_param("di", $cantidad_salida, $idmaterial);
+            $stmt->execute();
+            $stmt->close();
+
+            // Insertar salida de inventario
+            $stmt = $conn->prepare("INSERT INTO salidas_inventario (fecha, idmaterial, cantidad, costo) VALUES (CURDATE(), ?, ?, (SELECT costomaterial FROM inventario WHERE idmaterial = ?))");
+            $stmt->bind_param("idi", $idmaterial, $cantidad_salida, $idmaterial);
+            $stmt->execute();
+            $stmt->close();
+
+            $conn->commit();
+
+            header("Location: " . ($_POST["ag"] == 2 ? "invsalida.php" : "existencias.php"));
+            exit();
+        } catch (Exception $e) {
+            $conn->rollback();
+            header("Location: invsalida.php?msg=error");
+            exit();
+        }
+    }
 }
 
-
-if(isset($_POST["ag"]))
-{
-	$idmaterial=$_POST["idmaterial"];
-	$sql = "UPDATE inventario SET cantidad_material=\"".($_POST["cantidadactual"]-$_POST["cantidad_material"])."\" WHERE idmaterial=\"$idmaterial\""; 
-	$buscar=mysql_query($sql,$conectar)or die("error en consulta");
-	
-		$sql = "SELECT * FROM inventario WHERE idmaterial=\"$idmaterial\""; 
-	$buscar=mysql_query($sql,$conectar)or die("error en consulta");
-	$resul=mysql_fetch_row($buscar);
-	
-
-	
-	$sql = "INSERT INTO salidas_inventario VALUES(\"".date("Y-m-d")."\", \"$idmaterial\", \"$_POST[cantidad_material]\", \"$resul[2]\")"; 
-	$buscar=mysql_query($sql,$conectar)or die("error en consulta");
-	
-	if($_POST["ag"]==2)
-		header("location:invsalida.php");
-	else
-		header("location:existencias.php");
-		  
-
-
-}
-
-
-
-
-include("plus/header.lm");
+include "plus/header.lm";
 ?>
-<script language="javascript">
-function vac()
-{
 
+<script>
+function validarSalida() {
+    var cantidad = parseFloat(document.getElementById("cantidad_material").value);
+    var cantidadDisponible = parseFloat(document.getElementById("cantidadactual").value);
+    
+    if (isNaN(cantidad) || cantidad <= 0) {
+        alert("Ingrese una cantidad válida.");
+        return false;
+    }
+    if (cantidad > cantidadDisponible) {
+        alert("No hay suficiente material disponible. Disponible: " + cantidadDisponible);
+        return false;
+    }
 
-
-	if (document.invsalida.cantidad_material.value=="")
-	{
-	
-		document.invsalida.cantidad_material.focus();
-		alert("Ingrese la cantidad que desee registrar por favor!");
-		return false;
-
-	}else
-	{	if(parseInt(document.invsalida.cantidad_material.value) > parseInt(document.invsalida.cantidadactual.value))
-		{
-			document.invsalida.cantidad_material.focus();
-			alert("No existen el material suficiente para suplir esta orden! Material Disponible: "+document.invsalida.cantidadactual.value+ ". Material requerido: "+document.invsalida.cantidad_material.value);
-			return false;
-		
-		}
-		else
-		{
-
-			var answer = confirm("Desea continuar en Salidas de Inventarios?");
-			if (answer)
-			{
-				document.invsalida.ag.value="2";
-			}
-		}
-	}
+    return confirm("¿Desea continuar con la salida de inventario?");
 }
-
-
-
-
 </script>
-<?php
 
-include("plus/top.lm");
+<?php include "plus/top.lm"; ?>
 
+<?php if (!isset($_GET["idmaterial"])): ?>
+    <form action="invsalida.php" method="post">
+        <table width="90%" border="3" align="center" cellpadding="4" cellspacing="4" bordercolor="#164E7F">
+            <tr>
+                <td colspan="2" class="titulo">
+                    <img src="img/invsalida.jpg" width="300" height="75" />
+                </td>
+            </tr>
+            <tr>
+                <td width="24%"><b>Nombre de Material:</b></td>
+                <td width="76%">
+                    <select name="idmaterial" id="idmaterial">
+                        <option value="1">Seleccione un producto</option>
+                        <?php
+                        $stmt = $conn->prepare("SELECT idmaterial, nombrematerial FROM material ORDER BY nombrematerial ASC");
+                        $stmt->execute();
+                        $result = $stmt->get_result();
+                        while ($row = $result->fetch_assoc()) {
+                            echo "<option value='" . intval($row["idmaterial"]) . "'>" . htmlspecialchars($row["nombrematerial"]) . "</option>";
+                        }
+                        $stmt->close();
+                        ?>
+                    </select>    
+                </td>
+            </tr>
+            <tr>
+                <td colspan="2" align="center">
+                    <input type="submit" name="buscar" value="Buscar">
+                    <input type="button" value="Cancelar" onclick="window.location.replace('existencias.php');">
+                </td>
+            </tr>
+        </table>
+    </form>
+<?php endif; ?>
 
-?>
+<?php if (isset($_GET["idmaterial"])): ?>
+    <?php
+    $idmaterial = intval($_GET["idmaterial"]);
+    $stmt = $conn->prepare("SELECT nombrematerial FROM material WHERE idmaterial = ?");
+    $stmt->bind_param("i", $idmaterial);
+    $stmt->execute();
+    $material = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
 
+    $stmt = $conn->prepare("SELECT cantidad_material, costomaterial FROM inventario WHERE idmaterial = ?");
+    $stmt->bind_param("i", $idmaterial);
+    $stmt->execute();
+    $inventario = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
 
+    $cantidadDisponible = $inventario["cantidad_material"] ?? 0;
+    $costoMaterial = $inventario["costomaterial"] ?? 0;
+    ?>
 
+    <form action="invsalida.php" method="post" onsubmit="return validarSalida();">
+        <table width="90%" border="3" align="center" cellpadding="4" cellspacing="4" bordercolor="#164E7F">
+            <tr>
+                <td colspan="2" class="titulo">
+                    <img src="img/invsalida.jpg" width="300" height="75" />
+                </td>
+            </tr>
+            <tr>
+                <td width="24%"><b>Nombre del Material:</b></td>
+                <td width="76%">
+                    <input type="text" name="nombrematerial" value="<?php echo htmlspecialchars($material["nombrematerial"]); ?>" readonly>
+                    <input type="hidden" name="idmaterial" value="<?php echo $idmaterial; ?>">
+                </td>
+            </tr>
+            <tr>
+                <td width="24%"><b>Cantidad a utilizar:</b></td>
+                <td width="76%">
+                    <input type="number" name="cantidad_material" id="cantidad_material" min="1" step="0.01">
+                    <input type="hidden" name="cantidadactual" id="cantidadactual" value="<?php echo $cantidadDisponible; ?>">
+                </td>
+            </tr>
+            <tr>
+                <td colspan="2" align="center">
+                    <input type="hidden" name="ag" value="1">
+                    <input type="submit" name="finalizar" value="Finalizar">
+                    <input type="button" value="Cancelar" onclick="window.location.replace('existencias.php');">
+                </td>
+            </tr>
+        </table>
+    </form>
+<?php endif; ?>
 
-
-<?php
-if(!isset($_GET["idmaterial"]))
-{
-?>
-          <form action="invsalida.php" method="post" name="salida"><table width="90%" border="3" align="center" cellpadding="4" cellspacing="4" bordercolor="#164E7F">
-              
-		<tr>
-          <td colspan="2" class="titulo"><img src="img/invsalida.jpg" width="300" height="75" /></td>
-          </tr>
-		   
-          <td width="24%"><b>Nombre de Material: </b></td>
-          <td width="76%"><input name="busqueda" type="text" size="50" /><br />
-<select name="idmaterial" id="idmaterial">
-            <?php
-			
-			echo "<option value=1>Seleccione un producto de la lista</option>";
-
-			$sql=mysql_query("SELECT idmaterial, nombrematerial FROM material ORDER BY nombrematerial ASC", $conectar);
-			while($nombremateriales=mysql_fetch_array($sql))
-			{
-				echo "<option value=$nombremateriales[idmaterial]";
-				echo ">$nombremateriales[1]</option>";
-			}
-			?>
-			
-			
-            </select>     
-</td>
-        </tr>
-		 <tr>
-		   <td colspan="2" align="center"><input type="submit" name="buscar" value="Buscar" />
-
-
-
-
-
-		     &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <input type="submit" name="Submit2" value="Cancelar" />
-			 </td>
-		   </tr>
-		   
-      </table></form>
-<?php 
-}
-?>
-
-<?php
-if(isset($_POST["busqueda"]))
-{
-?>
-
-<table width="90%" border="3" align="center" cellpadding="4" cellspacing="4" bordercolor="#164E7F">
-              
-		   <?php
-		   	$criterio=$_POST["busqueda"];
-	$sql = "SELECT * FROM material WHERE nombrematerial LIKE \"%$criterio%\""; 
-	$buscar=mysql_query($sql,$conectar)or die("error en consulta");
-	$total=mysql_num_rows($buscar);
-	echo "<tr><td colspan=5 class=titulo>Registros encontrados: <b>$total</b></td></tr>";
-		   ?>
-          <tr>
-            <td class=titulo><b>Nombre del Material</b></td>
-            <td align="center" class=titulo>Costo Promedio</td>
-            <td align="center" class=titulo>Existencias</td>
-          </tr>
-		  <?php
-		  
-		  
-
-
-		  
-		  while($res=mysql_fetch_array($buscar))
-		  {
-			$bus="SELECT * FROM inventario WHERE idmaterial=\"$res[0]\"";
-			$consulta=mysql_query($bus, $conectar) or die("Error");
-			if(mysql_num_rows($consulta)>=1)
-				$row = mysql_fetch_row($consulta);
-			else
-			{
-				$row[1]=0;
-				$row[2]=0;
-			
-			}
-		  echo "<tr>
-            <td>";
-			if($row[1]>0)
-				echo "<a href=invsalida.php?idmaterial=$res[0]>$res[1]</a>";
-			else
-				echo "$res[1]";
-
-			echo"</td>
-            <td align=center>$ ".number_format($row[2], 2, '.', '')."</a></td>
-            <td align=center>$row[1] $res[medidamaterial]</td>
-			
-          </tr>";
-		  }
-		  echo "</table>";
-		  ?>
-
-<?php
-}
-
-
-?>
-
-
-<?php
-
-if(isset($_GET["idmaterial"]))
-{
-
-
-
-
-?>
-
-<?php
-	$idmaterial=$_GET["idmaterial"];
-	$sql = "SELECT * FROM material WHERE idmaterial=\"$idmaterial\""; 
-	$buscar=mysql_query($sql,$conectar)or die("error en consulta");
-	$total=mysql_num_rows($buscar);
-		  
-
-
-		  
-		  while($res=mysql_fetch_array($buscar))
-		  {
-			$bus="SELECT * FROM inventario WHERE idmaterial=\"$idmaterial\"";
-			$consulta=mysql_query($bus, $conectar) or die("Error");
-			if(mysql_num_rows($consulta)>=1)
-				$row = mysql_fetch_row($consulta);
-			else
-			{
-				$row[1]=0;
-				$row[2]=0;
-			
-			}
-			$nombre=$res["nombrematerial"];
-		}
-
-
-?>
-<form action="invsalida.php" method="post" name="invsalida"  onSubmit="return vac();">
-<table width="90%" border="3" align="center" cellpadding="4" cellspacing="4" bordercolor="#164E7F">
-  <tr>
-    <td colspan="2" class="titulo"><img src="img/invsalida.jpg" width="300" height="75" /></td>
-  </tr>
-  <tr>
-    <td width="24%"><b>Nombre del Material: </b></td>
-    <td width="76%"><input name="nombrematerial" type="text" id="nombrematerial" size="40" <?php echo "value=\"$nombre\""; ?> readonly>
-    <input name="idmaterial" type="hidden" id="idmaterial" <?php echo "value=\"$idmaterial\""; ?>></td>
-  </tr>
-  <tr>
-    <td width="24%"><b>Cantidad a utilizar: </b></td>
-    <td width="76%"><input name="cantidad_material" type="text" id="cantidad_material" size="2"/>
-    <input name="cantidadactual" type="hidden" id="cantidadactual" <?php echo "value=\"$row[1]\""; ?>></td>
-  </tr>
-  <tr>
-    <td colspan="2" align="center">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-      <input name="ag" type="hidden" value="1" /><input type="submit" name="finalizar" value="Finalizar">
-      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-      <input type="button" name="Submit2" onClick="javascript:window.location.replace('existencias.php');" value="Cancelar" /></td></tr>
-</table>
-
-</form>
-
-<?php
-
-}
-?>
-
-<?php 
-	  include("plus/bottom.lm");
-	  ?>
-	
+<?php include "plus/bottom.lm"; ?>
