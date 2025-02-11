@@ -1,139 +1,112 @@
-<?php 
-include("plus/conexion.lm");
-$reg=0;
+<?php
+session_start();
+require_once "db.php";
 
-if(isset($_POST["idclientes"]))
-{
-	$reg=1;
-}
+$reg = isset($_POST["idclientes"]) ? 1 : 0;
+include "plus/header.lm";
 
+if ($reg === 1) {
+    $idclientes = intval($_POST["idclientes"]);
 
-include("plus/header.lm");
+    // Consultar pedidos del cliente seleccionado
+    $stmt = $conn->prepare("SELECT COUNT(*) as total FROM pedidos WHERE idcliente = ?");
+    $stmt->bind_param("i", $idclientes);
+    $stmt->execute();
+    $result = $stmt->get_result()->fetch_assoc();
+    $t2pedi2 = $result["total"];
+    $stmt->close();
 
-
-if($reg==1)
-{
-
-	$conpe=mysql_query("SELECT * FROM pedidos WHERE idcliente=\"$_POST[idclientes]\"",$conectar);
-	$t2pedi2=mysql_num_rows($conpe);
-
+    // Consultar datos del cliente
+    $stmt = $conn->prepare("SELECT idcliente, nombrecliente FROM clientes WHERE idcliente = ?");
+    $stmt->bind_param("i", $idclientes);
+    $stmt->execute();
+    $cliente = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
 }
 ?>
 
 <body>
+<?php include "plus/top.lm"; ?>
 
-<?php
-include("plus/top.lm");
+<?php if ($reg === 1): ?>
+    <form action="ccf1.php" method="POST">
+        <table width="90%" border="3" align="center" cellpadding="4" cellspacing="4" bordercolor="#164E7F">
+            <tr>
+                <td colspan="2" class="titulo">
+                    <img src="img/ccf.jpg" width="300" height="75" />
+                </td>
+            </tr>
+            <tr>
+                <td width="24%"><b>Nombre del Cliente:</b></td>
+                <td width="76%">
+                    <input name="ncliente" type="text" size="50" value="<?php echo htmlspecialchars($cliente['nombrecliente']); ?>" readonly>
+                    <input name="idcliente" type="hidden" value="<?php echo htmlspecialchars($cliente['idcliente']); ?>">
+                    <input name="npedido" type="hidden" value="<?php echo $t2pedi2; ?>">
+                </td>
+            </tr>
+            <tr>
+                <td>Pedidos:</td>
+                <td>
+                    <?php
+                    $stmt = $conn->prepare("SELECT idpedido, cantidadproducto, idproducto FROM pedidos WHERE idcliente = ?");
+                    $stmt->bind_param("i", $cliente["idcliente"]);
+                    $stmt->execute();
+                    $pedidos = $stmt->get_result();
 
+                    while ($pedido = $pedidos->fetch_assoc()) {
+                        $stmt = $conn->prepare("SELECT nombreproducto FROM productos WHERE idproducto = ?");
+                        $stmt->bind_param("i", $pedido["idproducto"]);
+                        $stmt->execute();
+                        $producto = $stmt->get_result()->fetch_assoc()["nombreproducto"];
 
-if($reg==1)
-{
-?>
+                        echo '<input type="checkbox" name="pedido' . $pedido["idpedido"] . '" value="' . $pedido["idpedido"] . '">
+                              ' . $pedido["cantidadproducto"] . ' - (' . $pedido["idproducto"] . ') ' . htmlspecialchars($producto) . '<br>';
+                    }
+                    ?>
+                </td>
+            </tr>
+            <tr>
+                <td colspan="2"><input type="submit" name="Submit" value="Enviar"></td>
+            </tr>
+        </table>
+    </form>
 
-<form action="ccf1.php" method="POST" name="ccf">
-<table width="90%" border="3" align="center" cellpadding="4" cellspacing="4" bordercolor="#164E7F">
+<?php else: ?>
+    <form action="ccf.php" method="post">
+        <table width="90%" border="3" align="center" cellpadding="4" cellspacing="4" bordercolor="#164E7F">
+            <tr>
+                <td colspan="2" class="titulo">
+                    <img src="img/ccf.jpg" width="300" height="75" />
+                </td>
+            </tr>
+            <tr>
+                <td width="24%"><b>Nombre del Cliente:</b></td>
+                <td width="76%">
+                    <select name="idclientes">
+                        <?php
+                        $stmt = $conn->prepare("SELECT idcliente, nombrecliente FROM clientes WHERE tipodocumento = 1 ORDER BY nombrecliente ASC");
+                        $stmt->execute();
+                        $clientes = $stmt->get_result();
+                        
+                        while ($cliente = $clientes->fetch_assoc()) {
+                            $stmt = $conn->prepare("SELECT COUNT(*) as total FROM pedidos WHERE idcliente = ?");
+                            $stmt->bind_param("i", $cliente["idcliente"]);
+                            $stmt->execute();
+                            $totalPedidos = $stmt->get_result()->fetch_assoc()["total"];
+                            
+                            if ($totalPedidos > 0) {
+                                echo '<option value="' . htmlspecialchars($cliente["idcliente"]) . '">' . htmlspecialchars($cliente["nombrecliente"]) . '</option>';
+                            }
+                        }
+                        ?>
+                    </select>
+                    <input name="envio" type="submit" value="Enviar">
+                </td>
+            </tr>
+        </table>
+    </form>
+<?php endif; ?>
 
-	    <tr>
-          <td colspan="2" class="titulo"><img src="img/ccf.jpg" width="300" height="75" /></td>
-    </tr>
-		   
-         <tr> <td width="24%"><b>Nombre del Cliente: </b></td>
-		 <?php
-		 	$sql=mysql_query("SELECT idcliente, nombrecliente FROM clientes WHERE idcliente=\"$_POST[idclientes]\"", $conectar);
-			$cli=mysql_fetch_row($sql);
-		 
-		 
-		 ?>
-          <td width="76%"><input name="ncliente" type="text" id="ncliente" size="50" <?php echo "value=\"$cli[1]\""; ?>>          
-            <input name="idcliente" type="hidden" id="idcliente"  <?php echo "value=\"$cli[0]\""; ?>>
-            <input name="npedido" type="hidden" id="npedido" <?php echo "value=\"$t2pedi2\""; ?>></td>
-         </tr>
-         <tr>
-           <td>Pedidos:</td>
-           <td>
-		   
-		   <?php
-		   		$buspe=mysql_query("SELECT * FROM pedidos WHERE idcliente=\"$cli[0]\"",$conectar);
-				$i=0;
-				while($busped=mysql_fetch_array($buspe))
-				{
-					$prod=mysql_query("SELECT * FROM productos WHERE idproducto=\"$busped[idproducto]\"",$conectar)or die("Error");
-					while($produ=mysql_fetch_array($prod))
-					$producto=$produ["nombreproducto"];
-
-					$i++;
-					echo "<input type=\"checkbox\" name=\"pedido$i\" value=\"$busped[idpedido]\">
-					$busped[cantidadproducto] - ($busped[idproducto]) $producto<br>";
-				}
-		   
-		   
-		   ?>
-		   
-           </td>
-         </tr>
-         <tr>
-           <td colspan="2"><input type="submit" name="Submit" value="Enviar" /></td>
-    </tr>
-  </table>    
-</form>
-
-
-
-<?php
-}
-
-if($reg==0)
-{
-?>
-
-
-<form action="ccf.php" method="post" name="ccf">
-<table width="90%" border="3" align="center" cellpadding="4" cellspacing="4" bordercolor="#164E7F">
-
-	    <tr>
-          <td colspan="2" class="titulo"><img src="img/ccf.jpg" width="300" height="75" /></td>
-    </tr>
-		   
-         <tr> <td width="24%"><b>Nombre del Cliente: </b></td>
-          <td width="76%"><select name="idclientes" id="idclientes">
-<?php
-				$idcliente="";
-			if(isset($_GET["id"]))
-				$idcliente=$_GET["id"];
-				
-			$sql=mysql_query("SELECT idcliente, nombrecliente FROM clientes WHERE tipodocumento=\"1\" ORDER BY nombrecliente ASC", $conectar);
-			while($nombreclientes=mysql_fetch_array($sql))
-			{
-				$conpe=mysql_query("SELECT * FROM pedidos WHERE idcliente=\"$nombreclientes[0]\"",$conectar);
-				
-				if(mysql_num_rows($conpe)>0)
-				{
-				echo "<option value=$nombreclientes[0] ";
-				if ($nombreclientes[0]==$idcliente)
-					echo "selected";
-					
-				echo ">$nombreclientes[1]</option>";
-				}
-			}
-			
-			?>            
-			
-			
-			
-            </select><input name="envio" type="submit" value="Enviar" /></td>
-        </tr>
-  </table>    
-</form>
-
-
-<?php
-}
-
-?>
-
-
-
-      <?php 
-	  include("plus/bottom.lm");
-	  ?>
-	
+<?php include "plus/bottom.lm"; ?>
+</body>
+</html>
