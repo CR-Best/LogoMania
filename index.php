@@ -4,35 +4,37 @@ require_once "db.php";
 
 $error = false;
 
-if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST["user"], $_POST["pass"])) {
-    $user = trim($_POST["user"]);
-    $pass = trim($_POST["pass"]);
+if ($_SERVER["REQUEST_METHOD"] === "POST") {
+    $user = filter_input(INPUT_POST, "user", FILTER_SANITIZE_STRING);
+    $pass = filter_input(INPUT_POST, "pass", FILTER_SANITIZE_STRING);
 
-    // Consulta segura con prepared statements
-    $stmt = $conn->prepare("SELECT nombre, password, nivel FROM users WHERE idusuario = ?");
-    $stmt->bind_param("s", $user);
-    $stmt->execute();
-    $stmt->store_result();
+    if ($user && $pass) {
+        $stmt = $conn->prepare("SELECT nombre, password, nivel FROM users WHERE idusuario = ?");
+        $stmt->bind_param("s", $user);
+        $stmt->execute();
+        $stmt->store_result();
 
-    if ($stmt->num_rows > 0) {
-        $stmt->bind_result($nombre, $hashed_password, $nivel);
-        $stmt->fetch();
+        if ($stmt->num_rows > 0) {
+            $stmt->bind_result($nombre, $hashed_password, $nivel);
+            $stmt->fetch();
 
-        // Verificar contraseña
-        if (password_verify($pass, $hashed_password)) {
-            $_SESSION["user"] = $user;
-            $_SESSION["nombre"] = $nombre;
-            $_SESSION["nivel"] = $nivel;
-            header("Location: sistema.php");
-            exit();
-        } else {
-            $error = true;
+            if (password_verify($pass, $hashed_password)) {
+                $_SESSION["user"] = $user;
+                $_SESSION["nombre"] = $nombre;
+                $_SESSION["nivel"] = $nivel;
+                
+                $stmt->close();
+                $conn->close();
+                
+                header("Location: sistema.php");
+                exit();
+            }
         }
-    } else {
-        $error = true;
+        $stmt->close();
     }
-    $stmt->close();
+    $error = true;
 }
+$conn->close();
 ?>
 
 <!DOCTYPE html>
@@ -47,7 +49,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST["user"], $_POST["pass"]
         }
     </script>
 </head>
-
 <body onload="iniciar();">
     <table width="100%" border="0" cellspacing="0" cellpadding="0">
         <tr>
